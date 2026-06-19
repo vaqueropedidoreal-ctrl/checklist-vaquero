@@ -12,14 +12,9 @@
 <!-- Babel for in-browser JSX transform -->
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-<!-- Firebase (modular SDK via CDN, exposed as window globals) -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  window.firebaseApp = { initializeApp };
-  window.firebaseFirestore = { getFirestore, doc, setDoc, onSnapshot };
-  window.dispatchEvent(new Event("firebase-ready"));
-</script>
+<!-- Firebase (compat/classic build — works as plain script alongside Babel) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
 <style>
   * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
@@ -35,10 +30,8 @@
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef } = React;
-const { initializeApp } = window.firebaseApp;
-const { getFirestore, doc, setDoc, onSnapshot } = window.firebaseFirestore;
 
-// ── FIREBASE CONFIG ───────────────────────────────────────────────────────────
+// ── FIREBASE CONFIG (compat API — uses global `firebase` object) ──────────────
 const firebaseConfig = {
   apiKey: "AIzaSyDkxuV5LVJIKeWA1KTAX7uNQmLHPM_t-Jc",
   authDomain: "checklist-vaquero.firebaseapp.com",
@@ -47,9 +40,9 @@ const firebaseConfig = {
   messagingSenderId: "483398698671",
   appId: "1:483398698671:web:e62b956ae04b215872765a",
 };
-const fbApp = initializeApp(firebaseConfig);
-const fbDb  = getFirestore(fbApp);
-const FLEET_DOC = doc(fbDb, "fleet", "main");
+firebase.initializeApp(firebaseConfig);
+const fbDb = firebase.firestore();
+const FLEET_DOC = fbDb.collection("fleet").doc("main");
 
 // ── CHECKLIST ITEMS ──────────────────────────────────────────────────────────
 const CHECKLIST_ITEMS = [
@@ -182,7 +175,7 @@ function App() {
   const skipNextSnapshot = useRef(false);
 
   useEffect(() => {
-    const unsub = onSnapshot(FLEET_DOC, (snap) => {
+    const unsub = FLEET_DOC.onSnapshot((snap) => {
       if (skipNextSnapshot.current) { skipNextSnapshot.current = false; setLoading(false); return; }
       if (snap.exists()) {
         const s = snap.data();
@@ -199,7 +192,7 @@ function App() {
   const persist = (v,d,dc,op) => {
     setSyncing(true);
     skipNextSnapshot.current = true;
-    setDoc(FLEET_DOC, { vehicles:v, data:d, docs:dc, operadores:op })
+    FLEET_DOC.set({ vehicles:v, data:d, docs:dc, operadores:op })
       .catch(err=>console.error("Error guardando:",err))
       .finally(()=>setSyncing(false));
   };
@@ -925,29 +918,7 @@ function App() {
 
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
-
-function Boot() {
-  const [ready, setReady] = React.useState(!!window.firebaseApp);
-  React.useEffect(() => {
-    if (ready) return;
-    const onReady = () => setReady(true);
-    window.addEventListener("firebase-ready", onReady);
-    return () => window.removeEventListener("firebase-ready", onReady);
-  }, [ready]);
-  if (!ready) {
-    return (
-      <div style={{minHeight:"100vh",background:"#0f1623",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Mono','Courier New',monospace"}}>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontSize:36,marginBottom:12}}>🚛</div>
-          <div style={{color:"#f5a623",fontSize:12,letterSpacing:"0.15em",textTransform:"uppercase",fontWeight:700}}>Iniciando...</div>
-        </div>
-      </div>
-    );
-  }
-  return <App />;
-}
-
-root.render(<Boot />);
+root.render(<App />);
 </script>
 </body>
 </html>
